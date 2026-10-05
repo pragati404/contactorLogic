@@ -1,0 +1,31 @@
+name: MATLAB Simulink Tests
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  contactor-command-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup MATLAB
+        uses: matlab-actions/setup-matlab@v2
+        with:
+          release: R2025a
+          products: |
+            Simulink
+
+      - name: Run ContactorCommand Tests
+        uses: matlab-actions/run-tests@v2
+        with:
+          source-folder: tests
+          test-results-junit: test-results.xml
