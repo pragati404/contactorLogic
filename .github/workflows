@@ -1,32 +1,35 @@
-name: V_select Simulink CI
+name: MATLAB Simulink Tests
 
 on:
   push:
-    branches: [main]
+    branches:
+      - '**'
   pull_request:
 
 jobs:
-  simulink-test:
-    runs-on: ubuntu-latest
+  contactor-command-test:
+
+    runs-on: windows-latest
 
     steps:
+
+      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
+      # Setup MATLAB
       - name: Setup MATLAB
         uses: matlab-actions/setup-matlab@v2
         with:
-          products: Simulink DSP_System_Toolbox
+          release: R2025a
+          products: |
+            Simulink
 
-      - name: Run V_select tests
+      # Run ContactorCommand tests
+      - name: Run ContactorCommand Tests
         uses: matlab-actions/run-tests@v2
         with:
-          source-folder: .
-          test-results-junit: test-results/results.xml
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results
-          path: test-results/
+          source-folder: test
+          test-results-junit: test-results.xml
