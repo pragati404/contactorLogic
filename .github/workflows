@@ -5,21 +5,18 @@ on:
     branches:
       - '**'
   pull_request:
+  workflow_dispatch:
 
 jobs:
   contactor-command-test:
-
     runs-on: windows-latest
 
     steps:
-
-      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      # Setup MATLAB
       - name: Setup MATLAB
         uses: matlab-actions/setup-matlab@v2
         with:
@@ -27,9 +24,8 @@ jobs:
           products: |
             Simulink
 
-      # Run ContactorCommand tests
       - name: Run ContactorCommand Tests
         uses: matlab-actions/run-tests@v2
         with:
-          source-folder: test
+          source-folder: tests
           test-results-junit: test-results.xml
