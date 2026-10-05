@@ -44,17 +44,35 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
 
     methods (Access = private)
         function v = castToPort(tc, nm, v)
+            % Cast test data to the datatype expected by the root-level
+            % Inport. Do not silently fall back to double because external
+            % Dataset data must match the Simulink Inport datatype.
+
+            blk = [tc.Model '/' nm];
+
             try
-                dt = get_param([tc.Model '/' nm], 'OutDataTypeStr');
-            catch
-                dt = 'double';
+                dt = get_param(blk, 'OutDataTypeStr');
+            catch ME
+                error('ContactorDecisionTest:InputTypeLookupFailed', ...
+                    ['Could not read datatype for root Inport "%s". ' ...
+                     'Expected block path: "%s". Original error: %s'], ...
+                    nm, blk, ME.message);
             end
-            if strcmp(dt, 'boolean')
-                v = logical(v);
-            elseif any(strcmp(dt, {'uint8','uint16','uint32','int8','int16','int32','single','double'}))
-                v = cast(v, dt);
-            else
-                v = double(v);
+
+            switch lower(dt)
+                case {'boolean', 'bool'}
+                    v = logical(v);
+
+                case {'uint8','uint16','uint32','uint64', ...
+                      'int8','int16','int32','int64', ...
+                      'single','double'}
+                    v = cast(v, dt);
+
+                otherwise
+                    error('ContactorDecisionTest:UnsupportedInputType', ...
+                        ['Unsupported datatype "%s" for input "%s". ' ...
+                         'Update castToPort() if this Inport uses a ' ...
+                         'custom/fixed-point datatype.'], dt, nm);
             end
         end
 
