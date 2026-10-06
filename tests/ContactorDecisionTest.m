@@ -55,7 +55,7 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
             %             ReserveSwitch, merlynEnable,
             %             ContactorCommandfromMerlyn
             %   uint32  : looptime_ms
-            %   uint16  : vcuDebounceCycle, Soc
+            %   uint8   : vcuDebounceCycle, Soc
             %   Enum ReserveMode : VehicleModeType
             %
             % ReserveMode values:
@@ -79,7 +79,7 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
                     v = uint32(v);
 
                 case {'vcuDebounceCycle', 'Soc'}
-                    v = uint16(v);
+                    v = uint8(v);
 
                 case 'VehicleModeType'
                     % VehicleModeType is the ReserveMode enum:
