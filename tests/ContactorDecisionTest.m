@@ -50,54 +50,54 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
     % reliably tell us the final datatype. The boolean inputs are therefore
     % explicitly listed below.
 
-    booleanInputs = { ...
-        'isLoadRequested', ...
-        'isChargeRequested', ...
-        'vcuFrameRx', ...
-        'vcuLoadmissing', ...
-        'vcuChargemissing', ...
-        'vcuChargeCommand', ...
-        'vcuLoadCommand', ...
-        'ReserveSwitch', ...
-        'merlynEnable', ...
-        'ContactorCommandfromMerlyn' ...
-    };
-
-    if any(strcmp(nm, booleanInputs))
-        v = logical(v);
-        return;
-    end
-
-    % Numeric inputs
-    switch nm
-        case {'looptime_ms', 'vcuDebounceCycle', 'VehicleModeType', 'Soc'}
-            v = double(v);
-
-        otherwise
-            % For any future input, try to use the model's declared type.
-            blk = [tc.Model '/' nm];
-
-            try
-                dt = get_param(blk, 'OutDataTypeStr');
-            catch
-                dt = 'double';
+            booleanInputs = { ...
+                'isLoadRequested', ...
+                'isChargeRequested', ...
+                'vcuFrameRx', ...
+                'vcuLoadmissing', ...
+                'vcuChargemissing', ...
+                'vcuChargeCommand', ...
+                'vcuLoadCommand', ...
+                'ReserveSwitch', ...
+                'merlynEnable', ...
+                'ContactorCommandfromMerlyn' ...
+            };
+        
+            if any(strcmp(nm, booleanInputs))
+                v = logical(v);
+                return;
             end
-
-            switch lower(strtrim(dt))
-                case {'boolean', 'bool'}
-                    v = logical(v);
-
-                case {'uint8','uint16','uint32','uint64', ...
-                      'int8','int16','int32','int64', ...
-                      'single','double'}
-                    v = cast(v, dt);
-
-                otherwise
+        
+            % Numeric inputs
+            switch nm
+                case {'looptime_ms', 'vcuDebounceCycle', 'VehicleModeType', 'Soc'}
                     v = double(v);
+        
+                otherwise
+                    % For any future input, try to use the model's declared type.
+                    blk = [tc.Model '/' nm];
+        
+                    try
+                        dt = get_param(blk, 'OutDataTypeStr');
+                    catch
+                        dt = 'double';
+                    end
+        
+                    switch lower(strtrim(dt))
+                        case {'boolean', 'bool'}
+                            v = logical(v);
+        
+                        case {'uint8','uint16','uint32','uint64', ...
+                              'int8','int16','int32','int64', ...
+                              'single','double'}
+                            v = cast(v, dt);
+        
+                        otherwise
+                            v = double(v);
+                    end
+                end
             end
         end
-    end
-end
         function y = simulate(tc, over, n)
             % over: struct of overrides. Scalar = constant, vector (length n) = per step.
             s = tc.baseline();
