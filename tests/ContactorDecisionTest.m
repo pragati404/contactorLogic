@@ -1,7 +1,9 @@
 classdef ContactorDecisionTest < matlab.unittest.TestCase
 
     properties (Constant)
+
         Model = 'matlabmodel';
+
         Ts = 0.1;
 
         InNames = { ...
@@ -19,22 +21,44 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
             'vcuLoadCommand', ...
             'vcuDebounceCycle', ...
             'DisplaySOC'};
+
     end
 
 
-    %% Model setup
+    %% ================================================================
+    %  MODEL SETUP
+    %  ================================================================
+
     methods (TestClassSetup)
 
         function loadModel(tc)
 
-            % Get model folder relative to this test file
+            % Get folder containing this test file
             here = fileparts(mfilename('fullpath'));
+
+            % Model is stored one folder above tests/
             modelsFolder = fullfile(here, '..', 'models');
 
+            % Add model folder to MATLAB path
             addpath(modelsFolder);
 
+            % Full model path
+            modelFile = fullfile( ...
+                modelsFolder, ...
+                [tc.Model '.slx']);
+
+            % Check that model exists
+            if ~isfile(modelFile)
+
+                error( ...
+                    'ContactorDecisionTest:MissingModel', ...
+                    'Model not found: %s', ...
+                    modelFile);
+
+            end
+
             % Load model
-            load_system(fullfile(modelsFolder, [tc.Model '.slx']));
+            load_system(modelFile);
 
             % Close model after all tests
             tc.addTeardown(@() close_system(tc.Model, 0));
@@ -44,38 +68,96 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
     end
 
 
-    %% Baseline input values
+    %% ================================================================
+    %  BASELINE INPUT VALUES
+    %  ================================================================
+
     methods (Static)
 
         function s = baseline()
 
+            % All values are explicitly typed to match the model
+            % root-level Inport datatypes.
+
             s = struct( ...
-                'ReserveSwitch', false, ...
-                'ReserveModeVehicleType', int8(2), ...   % MANUAL
-                'isLoadRequested', true, ...
-                'isChargeRequested', false, ...
-                'Contactor_looptime', uint32(100), ...
-                'merlynEnable', false, ...
-                'ContactorCommandfromMerlyn', false, ...
-                'vcuFrameRx', true, ...
-                'vcuLoadMissing', false, ...
-                'vcuChargeMissing', false, ...
-                'vcuChargeCommand', false, ...
-                'vcuLoadCommand', true, ...
-                'vcuDebounceCycle', uint8(10), ...
-                'DisplaySOC', int16(50));
+
+                % boolean
+                'ReserveSwitch', ...
+                logical(false), ...
+
+                % int8
+                % 0 = OFF
+                % 1 = AUTO
+                % 2 = MANUAL
+                'ReserveModeVehicleType', ...
+                int8(2), ...
+
+                % boolean
+                'isLoadRequested', ...
+                logical(true), ...
+
+                % boolean
+                'isChargeRequested', ...
+                logical(false), ...
+
+                % uint32
+                'Contactor_looptime', ...
+                uint32(100), ...
+
+                % boolean
+                'merlynEnable', ...
+                logical(false), ...
+
+                % boolean
+                'ContactorCommandfromMerlyn', ...
+                logical(false), ...
+
+                % boolean
+                'vcuFrameRx', ...
+                logical(true), ...
+
+                % boolean
+                'vcuLoadMissing', ...
+                logical(false), ...
+
+                % boolean
+                'vcuChargeMissing', ...
+                logical(false), ...
+
+                % boolean
+                'vcuChargeCommand', ...
+                logical(false), ...
+
+                % boolean
+                'vcuLoadCommand', ...
+                logical(true), ...
+
+                % uint8
+                'vcuDebounceCycle', ...
+                uint8(10), ...
+
+                % int16
+                'DisplaySOC', ...
+                int16(50));
 
         end
 
     end
 
 
-    %% Input datatype conversion
+    %% ================================================================
+    %  INPUT DATATYPE CONVERSION
+    %  ================================================================
+
     methods (Access = private)
 
         function v = castToPort(~, name, v)
 
             switch name
+
+                % ----------------------------------------------------
+                % BOOLEAN INPUTS
+                % ----------------------------------------------------
 
                 case { ...
                         'ReserveSwitch', ...
@@ -91,106 +173,223 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
 
                     v = logical(v);
 
+
+                % ----------------------------------------------------
+                % RESERVE MODE
+                %
+                % 0 = OFF
+                % 1 = AUTO
+                % 2 = MANUAL
+                % ----------------------------------------------------
+
                 case 'ReserveModeVehicleType'
 
-                    % 0 = OFF
-                    % 1 = AUTO
-                    % 2 = MANUAL
                     v = int8(v);
+
+
+                % ----------------------------------------------------
+                % UINT32 INPUT
+                % ----------------------------------------------------
 
                 case 'Contactor_looptime'
 
                     v = uint32(v);
 
+
+                % ----------------------------------------------------
+                % UINT8 INPUT
+                % ----------------------------------------------------
+
                 case 'vcuDebounceCycle'
 
                     v = uint8(v);
+
+
+                % ----------------------------------------------------
+                % INT16 INPUT
+                % ----------------------------------------------------
 
                 case 'DisplaySOC'
 
                     v = int16(v);
 
+
                 otherwise
 
                     error( ...
                         'ContactorDecisionTest:UnknownInput', ...
-                        'Unknown model input: %s', name);
+                        'Unknown model input: %s', ...
+                        name);
 
             end
 
         end
 
 
-        %% Run simulation
+        %% ============================================================
+        %  SIMULATION
+        %  ============================================================
+
         function y = simulate(tc, overrides, n)
 
+            % --------------------------------------------------------
             % Start with baseline values
+            % --------------------------------------------------------
+
             s = tc.baseline();
 
+
+            % --------------------------------------------------------
             % Apply testcase-specific overrides
+            % --------------------------------------------------------
+
             fields = fieldnames(overrides);
 
             for k = 1:numel(fields)
+
                 s.(fields{k}) = overrides.(fields{k});
+
             end
 
-            % Simulation time
+
+            % --------------------------------------------------------
+            % Generate monotonically increasing simulation time
+            % --------------------------------------------------------
+
             t = (0:n-1)' * tc.Ts;
 
-            % Create external input dataset
+
+            % --------------------------------------------------------
+            % Create Simulink Dataset
+            % --------------------------------------------------------
+
             ds = Simulink.SimulationData.Dataset;
+
+
+            % --------------------------------------------------------
+            % Add every root-level input
+            % --------------------------------------------------------
 
             for k = 1:numel(tc.InNames)
 
                 name = tc.InNames{k};
 
                 v = s.(name);
+
+                % Make column vector
                 v = v(:);
 
-                % Repeat scalar input for every timestep
+
+                % If only one value is supplied,
+                % hold that value for the complete simulation.
+
                 if isscalar(v)
+
                     v = repmat(v, n, 1);
+
                 end
+
+
+                % Make sure number of samples is correct
 
                 tc.verifyEqual( ...
                     numel(v), ...
                     n, ...
-                    sprintf('%s must contain %d samples.', name, n));
+                    sprintf( ...
+                        '%s must contain %d samples.', ...
+                        name, ...
+                        n));
 
-                % Convert to model input datatype
+
+                % Convert to exact model port datatype
+
                 v = tc.castToPort(name, v);
 
-                % Zero-order hold
-                ts = timeseries(v, t, 'Name', name);
-                ts = setinterpmethod(ts, 'zoh');
 
-                ds = ds.addElement(ts, name);
+                % Create timeseries
+
+                ts = timeseries( ...
+                    v, ...
+                    t, ...
+                    'Name', ...
+                    name);
+
+
+                % Zero-order hold for discrete inputs
+
+                ts = setinterpmethod( ...
+                    ts, ...
+                    'zoh');
+
+
+                % Add to Dataset
+
+                ds = ds.addElement( ...
+                    ts, ...
+                    name);
 
             end
 
 
-            %% Simulation configuration
+            % --------------------------------------------------------
+            % Configure simulation
+            % --------------------------------------------------------
 
             in = Simulink.SimulationInput(tc.Model);
 
             in = in.setModelParameter( ...
-                'SolverType', 'Fixed-step', ...
-                'Solver', 'FixedStepDiscrete', ...
-                'FixedStep', num2str(tc.Ts), ...
-                'StopTime', num2str((n-1) * tc.Ts), ...
-                'SaveOutput', 'on', ...
-                'OutputSaveName', 'yout', ...
-                'SaveFormat', 'Dataset', ...
-                'ReturnWorkspaceOutputs', 'on');
 
+                'SolverType', ...
+                'Fixed-step', ...
+
+                'Solver', ...
+                'FixedStepDiscrete', ...
+
+                'FixedStep', ...
+                num2str(tc.Ts), ...
+
+                'StopTime', ...
+                num2str((n-1) * tc.Ts), ...
+
+                'SaveOutput', ...
+                'on', ...
+
+                'OutputSaveName', ...
+                'yout', ...
+
+                'SaveFormat', ...
+                'Dataset', ...
+
+                'ReturnWorkspaceOutputs', ...
+                'on');
+
+
+            % --------------------------------------------------------
             % Apply external inputs
+            % --------------------------------------------------------
+
             in = in.setExternalInput(ds);
 
-            % Run simulation
+
+            % --------------------------------------------------------
+            % Run model
+            % --------------------------------------------------------
+
             out = sim(in);
 
+
+            % --------------------------------------------------------
             % Extract first output
-            y = double(squeeze(out.yout{1}.Values.Data));
+            % --------------------------------------------------------
+
+            y = double( ...
+                squeeze( ...
+                    out.yout{1}.Values.Data));
+
+
+            % --------------------------------------------------------
+            % Verify output length
+            % --------------------------------------------------------
 
             tc.verifyEqual( ...
                 numel(y), ...
@@ -202,10 +401,18 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
     end
 
 
-    %% Test cases
+    %% ================================================================
+    %  TEST CASES
+    %  ================================================================
+
     methods (Test)
 
-        %% 1. Basic model execution
+
+        %% ------------------------------------------------------------
+        %  TEST 1
+        %  Basic model execution
+        %  ------------------------------------------------------------
+
         function testModelRunsBaseline(tc)
 
             y = tc.simulate( ...
@@ -214,52 +421,88 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
 
             tc.verifyEqual( ...
                 numel(y), ...
-                20);
+                20, ...
+                'Baseline simulation did not produce 20 samples.');
 
         end
 
 
-        %% 2. Merlyn controls contactor
+        %% ------------------------------------------------------------
+        %  TEST 2
+        %  Merlyn command = ON
+        %  ------------------------------------------------------------
+
         function testMerlynOverride(tc)
 
             y = tc.simulate( ...
                 struct( ...
-                    'merlynEnable', true, ...
-                    'ContactorCommandfromMerlyn', true, ...
-                    'isLoadRequested', false, ...
-                    'vcuLoadCommand', false), ...
+                    'merlynEnable', ...
+                    logical(true), ...
+
+                    'ContactorCommandfromMerlyn', ...
+                    logical(true), ...
+
+                    'isLoadRequested', ...
+                    logical(false), ...
+
+                    'vcuLoadCommand', ...
+                    logical(false)), ...
                 10);
+
 
             tc.verifyTrue( ...
                 all(y ~= 0), ...
-                'Merlyn command = 1 should command contactor.');
+                ['Merlyn command = 1 should command ', ...
+                 'the contactor.']);
 
         end
 
 
-        %% 3. Merlyn opens contactor
+        %% ------------------------------------------------------------
+        %  TEST 3
+        %  Merlyn command = OFF
+        %  ------------------------------------------------------------
+
         function testMerlynOpenCommand(tc)
 
             y = tc.simulate( ...
                 struct( ...
-                    'merlynEnable', true, ...
-                    'ContactorCommandfromMerlyn', false), ...
+                    'merlynEnable', ...
+                    logical(true), ...
+
+                    'ContactorCommandfromMerlyn', ...
+                    logical(false)), ...
                 10);
+
 
             tc.verifyTrue( ...
                 all(y == 0), ...
-                'Merlyn command = 0 should open contactor.');
+                ['Merlyn command = 0 should open ', ...
+                 'the contactor.']);
 
         end
 
 
-        %% 4. Verify ReserveMode values
+        %% ------------------------------------------------------------
+        %  TEST 4
+        %  ReserveMode input values
+        %
+        %  0 = OFF
+        %  1 = AUTO
+        %  2 = MANUAL
+        %  ------------------------------------------------------------
+
         function testReserveModeInput(tc)
 
-            % 0 = OFF
+
+            % --------------------------------------------------------
+            % OFF
+            % --------------------------------------------------------
+
             y = tc.simulate( ...
                 struct( ...
-                    'ReserveModeVehicleType', int8(0)), ...
+                    'ReserveModeVehicleType', ...
+                    int8(0)), ...
                 5);
 
             tc.verifyEqual( ...
@@ -268,10 +511,14 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
                 'ReserveMode OFF did not simulate.');
 
 
-            % 1 = AUTO
+            % --------------------------------------------------------
+            % AUTO
+            % --------------------------------------------------------
+
             y = tc.simulate( ...
                 struct( ...
-                    'ReserveModeVehicleType', int8(1)), ...
+                    'ReserveModeVehicleType', ...
+                    int8(1)), ...
                 5);
 
             tc.verifyEqual( ...
@@ -280,10 +527,14 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
                 'ReserveMode AUTO did not simulate.');
 
 
-            % 2 = MANUAL
+            % --------------------------------------------------------
+            % MANUAL
+            % --------------------------------------------------------
+
             y = tc.simulate( ...
                 struct( ...
-                    'ReserveModeVehicleType', int8(2)), ...
+                    'ReserveModeVehicleType', ...
+                    int8(2)), ...
                 5);
 
             tc.verifyEqual( ...
