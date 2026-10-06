@@ -85,9 +85,31 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
                     % VehicleModeType is the ReserveMode enum:
                     % 0 = OFF, 1 = AUTO, 2 = MANUAL.
                     %
+                    % Do not call ReserveMode(...) directly here. In CI,
+                    % the enum may be owned by the model/data dictionary
+                    % and therefore not be directly visible as a MATLAB
+                    % class name even though Simulink knows the type.
+                    %
+                    % First obtain the actual enum object/type from
+                    % Simulink. If the type is not registered yet, define
+                    % the known ReserveMode type for the test environment.
+                    try
+                        defaultEnum = Simulink.data.getEnumTypeInfo( ...
+                            'ReserveMode', 'DefaultValue');
+                        enumClass = class(defaultEnum);
+                    catch
+                        if isempty(Simulink.findIntEnumType('ReserveMode'))
+                            Simulink.defineIntEnumType( ...
+                                'ReserveMode', ...
+                                {'OFF', 'AUTO', 'MANUAL'}, ...
+                                [0 1 2]);
+                        end
+                        enumClass = 'ReserveMode';
+                    end
+
                     % Convert sample-by-sample so vector inputs are
-                    % supported reliably by the Dataset/timeseries input.
-                    v = arrayfun(@(x) ReserveMode(x), v);
+                    % supported reliably by Dataset/timeseries input.
+                    v = arrayfun(@(x) feval(enumClass, x), v);
 
                 otherwise
                     % Fallback for any future input that is not listed
@@ -164,16 +186,7 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
                 'ReturnWorkspaceOutputs', 'on');
 
             in = in.setExternalInput(ds);
-
-            try
-                out = sim(in);
-            catch ME
-                fprintf('\n========== SIMULATION ERROR ==========\n');
-                fprintf('Model: %s\n', tc.Model);
-                fprintf('%s\n', getReport(ME, 'extended', 'hyperlinks', 'off'));
-                fprintf('======================================\n\n');
-                rethrow(ME);
-            end
+            out = sim(in);
 
             y = double(squeeze(out.yout{1}.Values.Data));
 
