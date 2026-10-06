@@ -126,9 +126,23 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
             % The model has already been loaded. Resolve the actual enum
             % class registered by Simulink, then construct the enum using
             % its underlying numeric value.
-            defaultEnum = Simulink.data.getEnumTypeInfo( ...
-                'ReserveMode', 'DefaultValue');
-            enumClass = class(defaultEnum);
+            try
+                % Try to get enum info with just the name
+                defaultEnum = Simulink.data.getEnumTypeInfo('ReserveMode', 'DefaultValue');
+                enumClass = class(defaultEnum);
+            catch
+                % If that fails, search in the model's data dictionary or workspace
+                % Get all enum types defined in the model
+                enumInfo = Simulink.data.getEnumTypeInfo();
+                % Find ReserveMode in the list
+                idx = strcmp({enumInfo.Name}, 'ReserveMode');
+                if any(idx)
+                    defaultEnum = enumInfo(idx).DefaultValue;
+                    enumClass = class(defaultEnum);
+                else
+                    error('ReserveMode enum not found in model');
+                end
+            end
             e = feval(enumClass, x);
         end
 
