@@ -44,45 +44,60 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
 
     methods (Access = private)
         function v = castToPort(tc, nm, v)
-    % Cast test data to the datatype expected by the root-level Inport.
-    % For "Inherit: auto", leave the value unchanged and let Simulink
-    % resolve the datatype from the connected signal.
+    % Cast test input to the datatype expected by the model.
+    %
+    % Some root Inports use "Inherit: auto", so OutDataTypeStr cannot
+    % reliably tell us the final datatype. The boolean inputs are therefore
+    % explicitly listed below.
 
-    blk = [tc.Model '/' nm];
+    booleanInputs = { ...
+        'isLoadRequested', ...
+        'isChargeRequested', ...
+        'vcuFrameRx', ...
+        'vcuLoadmissing', ...
+        'vcuChargemissing', ...
+        'vcuChargeCommand', ...
+        'vcuLoadCommand', ...
+        'ReserveSwitch', ...
+        'merlynEnable', ...
+        'ContactorCommandfromMerlyn' ...
+    };
 
-    try
-        dt = get_param(blk, 'OutDataTypeStr');
-    catch ME
-        error('ContactorDecisionTest:InputTypeLookupFailed', ...
-            ['Could not read datatype for root Inport "%s". ' ...
-             'Expected block path: "%s". Original error: %s'], ...
-            nm, blk, ME.message);
+    if any(strcmp(nm, booleanInputs))
+        v = logical(v);
+        return;
     end
 
-    dt = strtrim(dt);
-
-    switch lower(dt)
-
-        case {'boolean', 'bool'}
-            v = logical(v);
-
-        case {'inherit: auto', 'inherit:auto'}
-            % Let Simulink determine the datatype from the model.
-            % Do not force the input to double here.
-            v = v;
-
-        case {'uint8','uint16','uint32','uint64', ...
-              'int8','int16','int32','int64', ...
-              'single','double'}
-            v = cast(v, dt);
+    % Numeric inputs
+    switch nm
+        case {'looptime_ms', 'vcuDebounceCycle', 'VehicleModeType', 'Soc'}
+            v = double(v);
 
         otherwise
-            % For inherited/custom datatypes, leave the input unchanged.
-            % This avoids breaking models that use propagated datatypes.
-            v = v;
+            % For any future input, try to use the model's declared type.
+            blk = [tc.Model '/' nm];
+
+            try
+                dt = get_param(blk, 'OutDataTypeStr');
+            catch
+                dt = 'double';
+            end
+
+            switch lower(strtrim(dt))
+                case {'boolean', 'bool'}
+                    v = logical(v);
+
+                case {'uint8','uint16','uint32','uint64', ...
+                      'int8','int16','int32','int64', ...
+                      'single','double'}
+                    v = cast(v, dt);
+
+                otherwise
+                    v = double(v);
+            end
+        end
     end
 end
-
         function y = simulate(tc, over, n)
             % over: struct of overrides. Scalar = constant, vector (length n) = per step.
             s = tc.baseline();
