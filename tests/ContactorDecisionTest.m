@@ -164,7 +164,16 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
                 'ReturnWorkspaceOutputs', 'on');
 
             in = in.setExternalInput(ds);
-            out = sim(in);
+
+            try
+                out = sim(in);
+            catch ME
+                fprintf('\n========== SIMULATION ERROR ==========\n');
+                fprintf('Model: %s\n', tc.Model);
+                fprintf('%s\n', getReport(ME, 'extended', 'hyperlinks', 'off'));
+                fprintf('======================================\n\n');
+                rethrow(ME);
+            end
 
             y = double(squeeze(out.yout{1}.Values.Data));
 
