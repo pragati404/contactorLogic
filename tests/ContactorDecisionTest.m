@@ -44,37 +44,44 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
 
     methods (Access = private)
         function v = castToPort(tc, nm, v)
-            % Cast test data to the datatype expected by the root-level
-            % Inport. Do not silently fall back to double because external
-            % Dataset data must match the Simulink Inport datatype.
+    % Cast test data to the datatype expected by the root-level Inport.
+    % For "Inherit: auto", leave the value unchanged and let Simulink
+    % resolve the datatype from the connected signal.
 
-            blk = [tc.Model '/' nm];
+    blk = [tc.Model '/' nm];
 
-            try
-                dt = get_param(blk, 'OutDataTypeStr');
-            catch ME
-                error('ContactorDecisionTest:InputTypeLookupFailed', ...
-                    ['Could not read datatype for root Inport "%s". ' ...
-                     'Expected block path: "%s". Original error: %s'], ...
-                    nm, blk, ME.message);
-            end
+    try
+        dt = get_param(blk, 'OutDataTypeStr');
+    catch ME
+        error('ContactorDecisionTest:InputTypeLookupFailed', ...
+            ['Could not read datatype for root Inport "%s". ' ...
+             'Expected block path: "%s". Original error: %s'], ...
+            nm, blk, ME.message);
+    end
 
-            switch lower(dt)
-                case {'boolean', 'bool'}
-                    v = logical(v);
+    dt = strtrim(dt);
 
-                case {'uint8','uint16','uint32','uint64', ...
-                      'int8','int16','int32','int64', ...
-                      'single','double'}
-                    v = cast(v, dt);
+    switch lower(dt)
 
-                otherwise
-                    error('ContactorDecisionTest:UnsupportedInputType', ...
-                        ['Unsupported datatype "%s" for input "%s". ' ...
-                         'Update castToPort() if this Inport uses a ' ...
-                         'custom/fixed-point datatype.'], dt, nm);
-            end
-        end
+        case {'boolean', 'bool'}
+            v = logical(v);
+
+        case {'inherit: auto', 'inherit:auto'}
+            % Let Simulink determine the datatype from the model.
+            % Do not force the input to double here.
+            v = v;
+
+        case {'uint8','uint16','uint32','uint64', ...
+              'int8','int16','int32','int64', ...
+              'single','double'}
+            v = cast(v, dt);
+
+        otherwise
+            % For inherited/custom datatypes, leave the input unchanged.
+            % This avoids breaking models that use propagated datatypes.
+            v = v;
+    end
+end
 
         function y = simulate(tc, over, n)
             % over: struct of overrides. Scalar = constant, vector (length n) = per step.
