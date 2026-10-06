@@ -43,12 +43,11 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
     end
 
     methods (Access = private)
+
         function v = castToPort(tc, nm, v)
-    % Cast test input to the datatype expected by the model.
-    %
-    % Some root Inports use "Inherit: auto", so OutDataTypeStr cannot
-    % reliably tell us the final datatype. The boolean inputs are therefore
-    % explicitly listed below.
+            % Cast test input to the datatype expected by the model.
+            % Several root Inports use "Inherit: auto", so the final
+            % compiled datatype is handled explicitly for known inputs.
 
             booleanInputs = { ...
                 'isLoadRequested', ...
@@ -62,81 +61,105 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
                 'merlynEnable', ...
                 'ContactorCommandfromMerlyn' ...
             };
-        
+
             if any(strcmp(nm, booleanInputs))
                 v = logical(v);
                 return;
             end
-        
-            % Numeric inputs
+
             switch nm
-                case {'looptime_ms', 'vcuDebounceCycle', 'VehicleModeType', 'Soc'}
+                case {'looptime_ms', 'vcuDebounceCycle', ...
+                      'VehicleModeType', 'Soc'}
                     v = double(v);
-        
+
                 otherwise
-                    % For any future input, try to use the model's declared type.
                     blk = [tc.Model '/' nm];
-        
+
                     try
                         dt = get_param(blk, 'OutDataTypeStr');
                     catch
                         dt = 'double';
                     end
-        
+
                     switch lower(strtrim(dt))
                         case {'boolean', 'bool'}
                             v = logical(v);
-        
+
                         case {'uint8','uint16','uint32','uint64', ...
                               'int8','int16','int32','int64', ...
                               'single','double'}
                             v = cast(v, dt);
-        
+
                         otherwise
                             v = double(v);
                     end
-                end
             end
         end
+
         function y = simulate(tc, over, n)
-            % over: struct of overrides. Scalar = constant, vector (length n) = per step.
+            % over: struct of overrides.
+            % Scalar = constant, vector (length n) = per step.
+
             s = tc.baseline();
+
             f = fieldnames(over);
             for i = 1:numel(f)
                 s.(f{i}) = over.(f{i});
             end
+
             t = (0:n-1)' * tc.Ts;
             ds = Simulink.SimulationData.Dataset;
+
             for i = 1:numel(tc.InNames)
                 nm = tc.InNames{i};
                 v = s.(nm);
                 v = v(:);
+
                 if isscalar(v)
                     v = repmat(v, n, 1);
                 end
-                tc.assertEqual(numel(v), n, sprintf('Input %s has %d samples, expected %d.', nm, numel(v), n));
+
+                tc.assertEqual( ...
+                    numel(v), n, ...
+                    sprintf('Input %s has %d samples, expected %d.', ...
+                    nm, numel(v), n));
+
                 v = tc.castToPort(nm, v);
+
                 ts = timeseries(v, t, 'Name', nm);
                 ts = setinterpmethod(ts, 'zoh');
                 ds = ds.addElement(ts, nm);
             end
+
             in = Simulink.SimulationInput(tc.Model);
-            in = in.setModelParameter('SolverType', 'Fixed-step', ...
+
+            in = in.setModelParameter( ...
+                'SolverType', 'Fixed-step', ...
                 'Solver', 'FixedStepDiscrete', ...
                 'FixedStep', num2str(tc.Ts), ...
                 'StopTime', num2str((n-1)*tc.Ts), ...
-                'SaveOutput', 'on', 'OutputSaveName', 'yout', ...
-                'SaveFormat', 'Dataset', 'ReturnWorkspaceOutputs', 'on');
+                'SaveOutput', 'on', ...
+                'OutputSaveName', 'yout', ...
+                'SaveFormat', 'Dataset', ...
+                'ReturnWorkspaceOutputs', 'on');
+
             in = in.setExternalInput(ds);
             out = sim(in);
+
             y = double(squeeze(out.yout{1}.Values.Data));
-            tc.assertEqual(numel(y), n, 'Unexpected number of output samples.');
+
+            tc.assertEqual( ...
+                numel(y), n, ...
+                'Unexpected number of output samples.');
         end
 
         function expectRange(tc, y, a, b, val, msg)
-            tc.verifyTrue(all(y(a:b) == val), ...
-                sprintf('%s: expected %d on steps %d..%d, got [%s]', msg, val, a, b, num2str(y(a:b)')));
+            tc.verifyTrue( ...
+                all(y(a:b) == val), ...
+                sprintf('%s: expected %d on steps %d..%d, got [%s]', ...
+                msg, val, a, b, num2str(y(a:b)')));
         end
+
     end
 
     methods (Test)
