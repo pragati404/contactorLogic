@@ -45,34 +45,54 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
     methods (Access = private)
 
         function v = castToPort(tc, nm, v)
-            % Cast test input to the datatype expected by the model.
-            % Several root Inports use "Inherit: auto", so the final
-            % compiled datatype is handled explicitly for known inputs.
-
-            booleanInputs = { ...
-                'isLoadRequested', ...
-                'isChargeRequested', ...
-                'vcuFrameRx', ...
-                'vcuLoadmissing', ...
-                'vcuChargemissing', ...
-                'vcuChargeCommand', ...
-                'vcuLoadCommand', ...
-                'ReserveSwitch', ...
-                'merlynEnable', ...
-                'ContactorCommandfromMerlyn' ...
-            };
-
-            if any(strcmp(nm, booleanInputs))
-                v = logical(v);
-                return;
-            end
+            % Cast each test input to the datatype configured on the
+            % corresponding root-level Inport in the model.
+            %
+            % Current model datatypes:
+            %   boolean : isLoadRequested, isChargeRequested, vcuFrameRx,
+            %             vcuLoadmissing, vcuChargemissing,
+            %             vcuChargeCommand, vcuLoadCommand,
+            %             ReserveSwitch, merlynEnable,
+            %             ContactorCommandfromMerlyn
+            %   uint32  : looptime_ms
+            %   uint16  : vcuDebounceCycle, Soc
+            %   Enum ReserveMode : VehicleModeType
+            %
+            % ReserveMode values:
+            %   0 = OFF, 1 = AUTO, 2 = MANUAL
 
             switch nm
-                case {'looptime_ms', 'vcuDebounceCycle', ...
-                      'VehicleModeType', 'Soc'}
-                    v = double(v);
+                case { ...
+                        'isLoadRequested', ...
+                        'isChargeRequested', ...
+                        'vcuFrameRx', ...
+                        'vcuLoadmissing', ...
+                        'vcuChargemissing', ...
+                        'vcuChargeCommand', ...
+                        'vcuLoadCommand', ...
+                        'ReserveSwitch', ...
+                        'merlynEnable', ...
+                        'ContactorCommandfromMerlyn'}
+                    v = logical(v);
+
+                case 'looptime_ms'
+                    v = uint32(v);
+
+                case {'vcuDebounceCycle', 'Soc'}
+                    v = uint16(v);
+
+                case 'VehicleModeType'
+                    % VehicleModeType is the ReserveMode enum:
+                    % 0 = OFF, 1 = AUTO, 2 = MANUAL.
+                    %
+                    % Convert sample-by-sample so vector inputs are
+                    % supported reliably by the Dataset/timeseries input.
+                    v = arrayfun(@(x) ReserveMode(x), v);
 
                 otherwise
+                    % Fallback for any future input that is not listed
+                    % above. This also avoids treating "Inherit: auto" as
+                    % a real datatype.
                     blk = [tc.Model '/' nm];
 
                     try
