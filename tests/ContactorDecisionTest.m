@@ -185,6 +185,14 @@ classdef ContactorDecisionTest < matlab.unittest.TestCase
                 'SaveFormat', 'Dataset', ...
                 'ReturnWorkspaceOutputs', 'on');
 
+            % VehicleModeType is an enumerated root-level Inport.
+            % Simulink does not allow interpolation for enum external
+            % input data, so explicitly disable interpolation for this
+            % port on the SimulationInput used by the test.
+            in = in.setBlockParameter( ...
+                [tc.Model '/VehicleModeType'], ...
+                'Interpolate', 'off');
+
             in = in.setExternalInput(ds);
             out = sim(in);
 
